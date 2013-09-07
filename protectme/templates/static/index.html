@@ -6,6 +6,7 @@
     <meta charset="utf-8">
     <title>Displaying text directions with <code>setPanel()</code></title>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC522dm1NFclA_As4Khr9KgGoI6xoA7b-0&sensor=false"></script>
+    
     <style>
       #directions-panel {
         height: 100%;
@@ -36,22 +37,31 @@
 
     function initialize() {
       directionsDisplay = new google.maps.DirectionsRenderer();
-      var lat = 37.878175;
-      var lng = -122.259703;
+      var lat = 37.786206;
+      var lng = -122.402532;
       var myCenter = new google.maps.LatLng(lat, lng);
       var mapOptions = {
-        zoom: 17,
-        mapTypeId: google.maps.MapTypeId.SATELLITE,
+        zoom: 6,
+        mapTypeId: google.maps.MapTypeId.ROADMAP,
         center: myCenter
       };
+      
+
       var map = new google.maps.Map(document.getElementById('map-canvas'),
           mapOptions);
+      layer = new google.maps.FusionTablesLayer({
+        query: {
+          select: 'latitude',
+          from: '1mufMfxuRh8MEgew365-h68rRO01tSdXrB-bLN50'
+        }
+      });
+      console.log('layer before setting the map is ', layer);
+      layer.setMap(map); 
+      console.log("layer is ", layer);
+
       directionsDisplay.setMap(map);
       directionsDisplay.setPanel(document.getElementById('directions-panel'));
-      var marker = new google.maps.Marker({
-            position: myCenter,
-      });
-      marker.setMap(map);
+      
     }
 
     function calcRoute() {
@@ -78,15 +88,16 @@
     <div>
       <strong>Start:</strong>
       <select id="start" onchange="calcRoute();">
-        <option value="2555 Virginia Street, Berkeley, CA, 94709">2555 Virginia Street, Berkeley, CA, 94709</option>
+        <option value="700 Block of MISSION ST, San Francisco">SF</option>
       </select>
       <strong>End:</strong>
       <select id="end" onchange="calcRoute();">
         <option></option>
-        <option value="2430 Dwight Way, Berkeley, CA, 94704">2430 Dwight Way, Berkeley, CA, 94704</option>
+        <option value="1 Market St #300 San Francisco, CA 94105">Salesforce</option>
       </select>
     </div>
     <div id="directions-panel"></div>
-    <div id="map-canvas" style="width:800px;height:430px;"></div>
+    <div id="map-canvas" style="width:500px;height:430px;"></div>
   </body>
 </html>
+
