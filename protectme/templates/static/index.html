@@ -1,31 +1,92 @@
 <!DOCTYPE HTML>
 <html lang="en">
-	<head>
-		<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC522dm1NFclA_As4Khr9KgGoI6xoA7b-0&sensor=false">
-		</script>
-		<script>
-		    var lat = 37.87817;
-		    var lng = -122.25970;
-		    var myCenter = new google.maps.LatLng(lat, lng);
-		    function initialize()
-		    {
-		      var mapProp = {
-		        center: myCenter,
-		        zoom:15,
-		        mapTypeId:google.maps.MapTypeId.ROADMAP
-		      };
-		      var map=new google.maps.Map(document.getElementById("googleMap")
-		        ,mapProp);
-		      var marker = new google.maps.Marker({
-		        position:myCenter,
-		      });
-		      marker.setMap(map);
-		    }
-		    google.maps.event.addDomListener(window, 'load', initialize);
-		</script>
-	</head>
-	<body>
-		<p>Hello World</p>
-		<div class="map" id="googleMap" style="width:400px;height:330px;"></div>
-	</body>
+
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <title>Displaying text directions with <code>setPanel()</code></title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC522dm1NFclA_As4Khr9KgGoI6xoA7b-0&sensor=false"></script>
+    <style>
+      #directions-panel {
+        height: 100%;
+        float: right;
+        width: 390px;
+        overflow: auto;
+      }
+
+      #map-canvas {
+        margin-right: 400px;
+      }
+
+      @media print {
+        #map-canvas {
+          height: 500px;
+          margin: 0;
+        }
+
+        #directions-panel {
+          float: none;
+          width: auto;
+        }
+      }
+    </style>
+    <script>
+    var directionsDisplay;
+    var directionsService = new google.maps.DirectionsService();
+
+    function initialize() {
+      directionsDisplay = new google.maps.DirectionsRenderer();
+      var lat = 37.878175;
+      var lng = -122.259703;
+      var myCenter = new google.maps.LatLng(lat, lng);
+      var mapOptions = {
+        zoom: 17,
+        mapTypeId: google.maps.MapTypeId.SATELLITE,
+        center: myCenter
+      };
+      var map = new google.maps.Map(document.getElementById('map-canvas'),
+          mapOptions);
+      directionsDisplay.setMap(map);
+      directionsDisplay.setPanel(document.getElementById('directions-panel'));
+      var marker = new google.maps.Marker({
+            position: myCenter,
+      });
+      marker.setMap(map);
+    }
+
+    function calcRoute() {
+      var start = document.getElementById('start').value;
+      var end = document.getElementById('end').value;
+      var request = {
+        origin: start,
+        destination: end,
+        travelMode: google.maps.TravelMode.WALKING,
+         provideRouteAlternatives: true
+      };
+      directionsService.route(request, function(response, status) {
+        if (status == google.maps.DirectionsStatus.OK) {
+          console.log("response is ", response);
+          directionsDisplay.setDirections(response);
+        }
+      });
+    }
+
+    google.maps.event.addDomListener(window, 'load', initialize);
+    </script>
+  </head>
+  <body>
+    <div>
+      <strong>Start:</strong>
+      <select id="start" onchange="calcRoute();">
+        <option value="2555 Virginia Street, Berkeley, CA, 94709">2555 Virginia Street, Berkeley, CA, 94709</option>
+      </select>
+      <strong>End:</strong>
+      <select id="end" onchange="calcRoute();">
+        <option></option>
+        <option value="2430 Dwight Way, Berkeley, CA, 94704">2430 Dwight Way, Berkeley, CA, 94704</option>
+      </select>
+    </div>
+    <div id="directions-panel"></div>
+    <div id="map-canvas" style="width:800px;height:430px;"></div>
+  </body>
 </html>
