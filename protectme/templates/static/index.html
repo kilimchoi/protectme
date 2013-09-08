@@ -7,6 +7,8 @@
     <title>Directions Widget</title>
     <link rel="stylesheet" href="http://js.arcgis.com/3.6/js/dojo/dijit/themes/claro/claro.css">
     <link rel="stylesheet" href="http://js.arcgis.com/3.6/js/esri/css/esri.css">
+    <script src="{{ STATIC_URL }}/credstore.js"></script>
+    <script>var dojoConfig = { parseOnLoad: true };</script>
     <style>
       html, body, #map {
         height:100%;
@@ -19,50 +21,207 @@
         overflow:hidden;
         font-family:"Trebuchet MS";
       }
+      #dijit_layout_ContentPane_0 {
+        background-color: #fff;
+        height: 100%;
+
+      }
+      .esriSimpleSlider { 
+        left: 300px;
+      }
 
     </style>
     <script src="{{ STATIC_URL }}/credstore.js"></script>
-
     <script>var dojoConfig = { parseOnLoad: true };</script>
     <script src="http://js.arcgis.com/3.6/"></script>
     <script>
-     dojo.require("esri.arcgis.utils");
-     dojo.require("dojox.mobile");
-    
-     function init() { 
-       dojo.addOnUnload(storeCredentials);
-       loadCredentials();
-       var mapid= "57d97918fd004bf4ba4ee431805916aa";
-       var mapDeferred = esri.arcgis.utils.createMap(mapid, "map", {
+      var map, directions, routeTask, routeParams, routes = [];
+      var stopSymbol, barrierSymbol, routeSymbols;
+      var mapOnClick_addStops_connect, mapOnClick_addBarriers_connect;
+      dojo.require("esri.arcgis.utils");
+      dojo.require("esri.dijit.Directions");
+      dojo.require("esri.geometry.Point");
+      function init() { 
+        dojo.addOnUnload(storeCredentials);
+        loadCredentials();
+        var mapid= "57d97918fd004bf4ba4ee431805916aa";
+        var mapDeferred = esri.arcgis.utils.createMap(mapid, "map", {
           mapOptions: {
             slider: true,
             nav: false
           }
         });
-        mapDeferred.then(function(response) {
-          map = response.map;
-          require(["esri/urlUtils", "esri/map", "esri/dijit/Directions", "dijit/layout/BorderContainer", "dijit/layout/ContentPane", "dojo/domReady!"],
+        
+        require(["esri/urlUtils", "esri/map", "esri/dijit/Directions", "dijit/layout/BorderContainer", "dijit/layout/ContentPane", "dojo/domReady!", "esri/graphic"],
           function(urlUtils, Map, Directions){
-            console.log("mapDeferred is ", mapDeferred);
-            var directions = new Directions({
-              map: map
-            },"dir");
-            directions.startup();
+            //all requests to route.arcgis.com will proxy to the proxyUrl defined in this object.
+            
+            mapDeferred.then(function(response) {
+              map = response.map;
+              console.log("graphics are ", map.graphics);
+              console.log("current graphicLayers are ", map.graphicsLayerIds);
+              console.log("graphic Layer Ids are ", map.graphicsLayerIds[0]);
+              var incidentLayer = map.getLayer(map.graphicsLayerIds[0]);
+              console.log("incidentLayer fields are ", incidentLayer.fields);
+              directions = new Directions({
+                map: map
+              },"dir");
+              directions.startup();
+              map.graphicsLayerIds
+              routeTask = new esri.tasks.RouteTask("http://tasks.arcgisonline.com/ArcGIS/rest/services/NetworkAnalysis/ESRI_Route_NA/NAServer/Route");
+              routeParams = new esri.tasks.RouteParameters();
+              routeParams.stops = new esri.tasks.FeatureSet();
+              routeParams.barriers = new esri.tasks.FeatureSet();
+              routeParams.outSpatialReference = {"wkid":102100};
+              dojo.connect(routeTask, "onSolveComplete", showRoute);
+              dojo.connect(routeTask, "onError", errorHandler);
+
+              stopSymbol = new esri.symbol.SimpleMarkerSymbol().setStyle(esri.symbol.SimpleMarkerSymbol.STYLE_CROSS).setSize(15);
+              stopSymbol.outline.setWidth(3);
+
+              barrierSymbol = new esri.symbol.SimpleMarkerSymbol().setStyle(esri.symbol.SimpleMarkerSymbol.STYLE_X).setSize(10);
+              barrierSymbol.outline.setWidth(3).setColor(new dojo.Color([255,0,0]));
+
+              routeSymbols = {
+                "Route 1": new esri.symbol.SimpleLineSymbol().setColor(new dojo.Color([0,0,255,0.5])).setWidth(5),
+                "Route 2": new esri.symbol.SimpleLineSymbol().setColor(new dojo.Color([0,255,0,0.5])).setWidth(5),
+                "Route 3": new esri.symbol.SimpleLineSymbol().setColor(new dojo.Color([255,0,255,0.5])).setWidth(5)
+              };
+              
+            });
+            
           });
-        });
-
-
+        
       }
+      dojo.ready(init);
+      
 
-      dojo.addOnLoad(init);
+       function addStops() {
+          removeEventHandlers();
+          mapOnClick_addStops_connect = dojo.connect(map, "onClick", addStop);
+        }
+
+        //Clears all stops
+        function clearStops() {
+          removeEventHandlers();
+          for (var i=routeParams.stops.features.length-1; i>=0; i--) {
+            map.graphics.remove(routeParams.stops.features.splice(i, 1)[0]);
+          }
+        }
+        var origin, destination, startSymbol, endSymbol;
+        require(["esri/geometry/Point","esri/SpatialReference", "esri/symbols/SimpleMarkerSymbol", "dojo/_base/Color"], 
+                function(Point, SpatialReference, SimpleMarkerSymbol, Color) {
+         var sr = new SpatialReference({wkid:102100});
+         origin = new Point(-13626725.658920188, 4547790.897155084, sr);
+         destination = new Point(-13626064.49256583, 4547125.784308249, sr);
+         startSymbol = endSymbol = new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_X, 10, null, new Color("red"));
+        });
+        //Adds a stop. The stop is associated with the route currently displayed in the dropdown
+        function addStop(evt) {
+          routeParams.stops.features.push(
+            map.graphics.add(
+              new esri.Graphic(
+                 evt.mapPoint,
+                 stopSymbol,
+                 { RouteName:dojo.byId("routeName").value }
+              )
+            )
+          );
+          
+        }
+
+        //Begins listening for click events to add barriers
+        function addBarriers() {
+          removeEventHandlers();
+          mapOnClick_addBarriers_connect = dojo.connect(map, "onClick", addBarrier);
+        }
+
+        //Clears all barriers
+        function clearBarriers() {
+          removeEventHandlers();
+          for (var i=routeParams.barriers.features.length-1; i>=0; i--) {
+            map.graphics.remove(routeParams.barriers.features.splice(i, 1)[0]);
+          }
+        }
+
+        //Adds a barrier
+        function addBarrier(evt) {
+          routeParams.barriers.features.push(
+            map.graphics.add(
+              new esri.Graphic(
+                evt.mapPoint,
+                barrierSymbol
+              )
+            )
+          );
+          console.log(evt.mapPoint)
+        }
+
+        //Stops listening for click events to add barriers and stops
+        function removeEventHandlers() {
+          dojo.disconnect(mapOnClick_addStops_connect);
+          dojo.disconnect(mapOnClick_addBarriers_connect);
+        }
+
+        //Solves the routes. Any errors will trigger the errorHandler function.
+        function solveRoute() {
+          removeEventHandlers();
+          routeTask.solve(routeParams);
+        }
+
+        //Clears all routes
+        function clearRoutes() {
+          for (var i=routes.length-1; i>=0; i--) {
+            map.graphics.remove(routes.splice(i, 1)[0]);
+          }
+          routes = [];
+        }
+
+        //Draws the resulting routes on the map
+        function showRoute(solveResult) {
+          clearRoutes();
+
+          dojo.forEach(solveResult.routeResults, function(routeResult, i) {
+            routes.push(
+              map.graphics.add(
+                routeResult.route.setSymbol(routeSymbols[routeResult.routeName])
+              )
+            );
+          });
+
+          var msgs = ["Server messages:"];
+          dojo.forEach(solveResult.messages, function(message) {
+            msgs.push(message.type + " : " + message.description);
+          });
+          if (msgs.length > 1) {
+            alert(msgs.join("\n - "));
+          }
+        }
+
+        //Reports any errors that occurred during the solve
+        function errorHandler(err) {
+          alert("An error occured\n" + err.message + "\n" + err.details.join("\n"));
+        }
+
     </script>
   </head>
   <body class="claro">
     <div data-dojo-type="dijit.layout.BorderContainer" data-dojo-props="design:'headline', gutters:false" style="width:100%;height:100%;">
-      <div data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'left'" style="width:250px;">
+      <div data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'right'" style="width:250px; left:0px; top: 0px; position: absolute;" class="dijitContentPane dijitBorderContainerNoGutter-child dijitBorderContainerNoGutter-dijitContentPane dijitBorderContainerNoGutterPane dijitAlignRight" title role="group" id="dijit_layout_ContentPane_0" widgetid="dijit_layout_ContentPane_0">
+         Select route name: <select id="routeName">
+      <option value="Route 1">Route 1</option>
+
+      <option value="Route 2">Route 2</option>
+      <option value="Route 3">Route 3</option>
+    </select> to <button onclick="addStops();">Add Stops</button><button onclick="clearStops();">Clear Stops</button>
+    <button onclick="addBarriers();">Add Barriers</button><button onclick="clearBarriers();">Clear Barriers</button>
+    <button onclick="solveRoute();">Solve Routes</button><button onclick="clearRoutes();">Clear Routes</button>
         <div id="dir"></div>
       </div>
       <div data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region:'center'" id="map"></div>
    </div>
+
+
   </body>
 </html>
+
